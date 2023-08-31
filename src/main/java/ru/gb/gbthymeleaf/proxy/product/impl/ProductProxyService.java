@@ -3,6 +3,7 @@ package ru.gb.gbthymeleaf.proxy.product.impl;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.EmptyResultDataAccessException;
+import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Component;
 import ru.gb.gbthymeleaf.dao.ProductDao;
 import ru.gb.gbthymeleaf.entity.Product;
@@ -22,6 +23,7 @@ public class ProductProxyService implements Proxy {
     private Map<Long, ProductProxy> productProxyById;
     private final ProductDao productDao;
     private final ProductProxyMapper mapper;
+    private final KafkaTemplate<String, String> kafkaTemplate;
 
     @Override
     public ProductProxy save(ProductProxy productProxy) {
@@ -40,10 +42,18 @@ public class ProductProxyService implements Proxy {
                 productFromDB.setManufactureDate(productProxy.getManufactureDate());
                 productFromDB.setStatus(productProxy.getStatus());
                 productFromDB.setCost(productProxy.getCost());
-                return mapper.toProxy(productDao.save(productFromDB));
+
+                var proxyProduct = mapper.toProxy(productDao.save(productFromDB));
+
+                kafkaTemplate.send("gb-topic", "Product update successfully");
+                return proxyProduct;
             }
         }
-        return mapper.toProxy(productDao.save(mapper.toModel(productProxy)));
+
+        var proxyProduct = mapper.toProxy(productDao.save(mapper.toModel(productProxy)));
+
+        kafkaTemplate.send("gb-topic", "Product create successfully");
+        return proxyProduct;
     }
 
     @Override
@@ -73,5 +83,6 @@ public class ProductProxyService implements Proxy {
         }
 
         productProxyById.remove(id);
+        kafkaTemplate.send("gb-topic", "Product delete successfully");
     }
 }
