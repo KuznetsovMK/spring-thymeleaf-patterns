@@ -1,0 +1,4 @@
+spring.datasource:
+  url: ${SPRING_THYMELEAF__SPRING_DATASOURCE__URL:'jdbc:postgresql://localhost:5432/gb_shop'}
+  username: ${SPRING_THYMELEAF__SPRING_DATASOURCE__USERNAME:'postgres_user1'}
+  password: ${SPRING_THYMELEAF__SPRING_DATASOURCE__PASSWORD:'123'}
