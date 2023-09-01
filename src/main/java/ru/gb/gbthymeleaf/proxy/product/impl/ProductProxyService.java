@@ -20,17 +20,18 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 @Slf4j
 public class ProductProxyService implements Proxy {
-    private Map<Long, ProductProxy> productProxyById;
+    private Map<Long, ProductProxy> cachedProductById;
     private final ProductDao productDao;
     private final ProductProxyMapper mapper;
     private final KafkaTemplate<String, String> kafkaTemplate;
 
     @Override
     public ProductProxy save(ProductProxy productProxy) {
+        var productById = getCache();
         var savedProductProxy = saveProduct(productProxy);
 
-        productProxyById.put(savedProductProxy.getId(), savedProductProxy);
-        return productProxyById.get(savedProductProxy.getId());
+        productById.put(savedProductProxy.getId(), savedProductProxy);
+        return productById.get(savedProductProxy.getId());
     }
 
     private ProductProxy saveProduct(ProductProxy productProxy) {
@@ -58,20 +59,12 @@ public class ProductProxyService implements Proxy {
 
     @Override
     public ProductProxy findById(Long id) {
-        return productProxyById.get(id);
+        return getCache().get(id);
     }
 
     @Override
     public List<ProductProxy> findAll() {
-        if (productProxyById == null) {
-            productProxyById = productDao.findAll().stream()
-                    .collect(Collectors.toMap(
-                            Product::getId,
-                            mapper::toProxy
-                    ));
-        }
-
-        return productProxyById.values().stream().toList();
+        return getCache().values().stream().toList();
     }
 
     @Override
@@ -82,7 +75,23 @@ public class ProductProxyService implements Proxy {
             log.error("No such id in DB: " + e.getMessage());
         }
 
-        productProxyById.remove(id);
+        getCache().remove(id);
         kafkaTemplate.send("gb-topic", "Product delete successfully");
+    }
+
+    private Map<Long, ProductProxy> getCache() {
+        if (cachedProductById == null) {
+            cachedProductById = initCache();
+        }
+
+        return cachedProductById;
+    }
+
+    private Map<Long, ProductProxy> initCache() {
+        return productDao.findAll().stream()
+                .collect(Collectors.toMap(
+                        Product::getId,
+                        mapper::toProxy
+                ));
     }
 }
